@@ -1,15 +1,20 @@
 pipeline {
-    agent any
+    agent { label 'built-in' }
+
+    environment {
+        git_branch = 'main'
+        git_url = 'git@github.com:maruthibg1998/Amazon.git'
+    }
 
     stages {
 
-        stage('clone project') {
+        stage('Clone') {
             steps {
-                git branch: 'main', url: 'git@github.com:maruthibg1998/Amazon.git'
+                git branch: "${git_branch}", url: "${git_url}"
             }
         }
 
-        stage('clean') {
+        stage('Clean') {
             steps {
                 dir('Amazon') {
                     sh 'mvn clean'
@@ -17,7 +22,7 @@ pipeline {
             }
         }
 
-        stage('compile') {
+        stage('Compile') {
             steps {
                 dir('Amazon') {
                     sh 'mvn compile'
@@ -25,14 +30,13 @@ pipeline {
             }
         }
 
-        stage('test') {
+        stage('Test') {
             steps {
                 dir('Amazon') {
                     sh 'mvn test'
                 }
             }
         }
-
         stage('package') {    
             steps {
                 dir('Amazon') {
@@ -40,14 +44,57 @@ pipeline {
                 }
             }
         }
-
-        stage('build') {
+        stage('Install') {
             steps {
                 dir('Amazon') {
                     sh 'mvn clean install'
                 }
             }
         }
+    }
 
+    post {
+
+        success {
+            echo "Build completed successfully!"
+
+            // Email to you
+            mail to: 'maruthi.bg6@gmail.com','maruthi.abc.reports@gmail.com', 'pavankumarch29@gmail.com', 'pavan.abc.reports@gmail.com'
+                subject: "BUILD SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "The Jenkins job '${env.JOB_NAME}' build #${env.BUILD_NUMBER} completed SUCCESSFULLY.\n\nConsole output:\n${env.BUILD_URL}"
+
+           
+        }
+
+        failure {
+            echo "Build failed."
+
+            // Email to you
+            mail to: ''maruthi.bg6@gmail.com','maruthi.abc.reports@gmail.com', 'pavankumarch29@gmail.com', 'pavan.abc.reports@gmail.com'
+                subject: "BUILD FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "The Jenkins job '${env.JOB_NAME}' build #${env.BUILD_NUMBER} has FAILED.\n\nConsole output:\n${env.BUILD_URL}"
+
+            
+        }
+
+        unstable {
+            echo "Build is unstable — tests may have failed."
+
+            mail to: 'maruthi.bg6@gmail.com','maruthi.abc.reports@gmail.com', 'pavankumarch29@gmail.com', 'pavan.abc.reports@gmail.com'
+                subject: "BUILD UNSTABLE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "The Jenkins job '${env.JOB_NAME}' build #${env.BUILD_NUMBER} is UNSTABLE.\nTests may have failed.\n\nConsole output:\n${env.BUILD_URL}"
+        }
+
+        aborted {
+            echo "Build aborted by user."
+
+            mail to: 'maruthi.bg6@gmail.com','maruthi.abc.reports@gmail.com', 'pavankumarch29@gmail.com', 'pavan.abc.reports@gmail.com'
+                subject: "BUILD ABORTED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                body: "The Jenkins job '${env.JOB_NAME}' build #${env.BUILD_NUMBER} was aborted.\n\nConsole output:\n${env.BUILD_URL}"
+        }
+
+        always {
+            echo "Pipeline finished."
+        }
     }
 }
