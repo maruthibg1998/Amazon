@@ -1,4 +1,4 @@
-pipeline {
+line {
     agent { label 'built-in' }
 
     environment {
