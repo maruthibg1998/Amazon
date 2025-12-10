@@ -38,20 +38,23 @@ pipeline {
 
         /* ================== SONARQUBE ANALYSIS ================== */
         stage('SonarQube Analysis') {
+            environment {
+                PATH = "$PATH:/opt/sonar-scanner/bin"    // <-- ADD system scanner path
+            }
             steps {
                 script {
                     withSonarQubeEnv("${SONAR_SERVER}") {
                         withCredentials([string(credentialsId: SONAR_TOKEN, variable: 'TOKEN')]) {
 
-                            sh '''
-                                sonar-scanner \
+                            sh """
+                                /opt/sonar-scanner/bin/sonar-scanner \
                                     -Dsonar.projectKey=Amazon \
                                     -Dsonar.projectName=Amazon \
                                     -Dsonar.sources=Amazon \
                                     -Dsonar.java.binaries=Amazon/Amazon-Web/target \
                                     -Dsonar.host.url=$SONAR_HOST_URL \
                                     -Dsonar.login=$TOKEN
-                            '''
+                            """
                         }
                     }
                 }
