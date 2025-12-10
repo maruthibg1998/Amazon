@@ -1,96 +1,102 @@
 pipeline {
-    agent { label 'built-in' }
+    agent any
+
+
+    parameters {
+        choice(name: 'DEPLOY_ENV', choices: ['dev', 'qa', 'prod'], description: 'Choose environment')
+    }
 
     environment {
-        git_branch = 'main'
-        git_url = 'git@github.com:maruthibg1998/Amazon.git'
+        SONAR_CRED = "sonar-token"
+        TOMCAT_CRED = "tomcat-creds"
+        WAR_BACKUP_DIR = "backup"
     }
+
+   
 
     stages {
 
-        stage('Clone') {
+         stage('Select Environment') {
             steps {
-                git branch: "${git_branch}", url: "${git_url}"
-            }
-        }
+                script {
+                    def BRANCH = env.BRANCH_NAME.toLowerCase()
 
-        stage('Clean') {
-            steps {
-                dir('Amazon') {
-                    sh 'mvn clean'
+                    DEPLOY_ENV =
+                        (BRANCH.startsWith('dev'))  ? 'dev'  :
+                        (BRANCH.startsWith('qa'))   ? 'qa'   :
+                        (BRANCH.startsWith('prod') || BRANCH == 'main') ? 'prod' :
+                                                                         'dev'
+
+                    echo "Branch Name: ${BRANCH}"
+                    echo "Selected Environment: ${DEPLOY_ENV}"
                 }
             }
         }
 
         stage('Compile') {
             steps {
-                dir('Amazon') {
-                    sh 'mvn compile'
+                dir('Amazon'){
+                    sh 'mvn clean compile -B'
+                }
+                 // batch mode, jenkins will not interactive question during build (do this or not ...)
+            }
+        }
+
+        stage('Unit Test') {
+            steps {
+                dir('Amazon'){
+                sh 'mvn test -B'
+                }
+                junit '**/target/surefire-reports/*.xml' // tells jenkins to go this path and read status failed or passed so that jenkins can display status of test case
+            }
+        }
+
+
+        stage('Package WAR') {
+            steps {
+                dir('Amazon'){
+                sh 'mvn -DskipTests package -B'
                 }
             }
         }
 
-        stage('Test') {
+        stage('Backup WAR') {
             steps {
-                dir('Amazon') {
-                    sh 'mvn test'
-                }
+                sh "mkdir -p ${WAR_BACKUP_DIR}"
+                sh "cp Amazon/Amazon-Web/target/*.war ${WAR_BACKUP_DIR}/amazon_${BUILD_NUMBER}.war"
             }
         }
 
-        stage('Package') {
+        stage('Deploy to Tomcat') {
             steps {
-                dir('Amazon') {
-                    sh 'mvn package'
-                }
-            }
-        }
+                script {
+                    
+                    def BRANCH = env.BRANCH_NAME.toLowerCase()
 
-        stage('Install') {
-            steps {
-                dir('Amazon') {
-                    sh 'mvn clean install'
+                    
+                    def HOST = (params.DEPLOY_ENV == 'dev')  ? "localhost:8085"  :
+                               (params.DEPLOY_ENV == 'qa')   ? "localhost:8092"   :
+                                                                 "localhost:8081"
+
+                    withCredentials([usernamePassword(credentialsId: 'local tomcat', usernameVariable: 'USER', passwordVariable: 'PASS')]) { //USER , PASS is jenkins variables we do not need to replace with ACTUAL values
+
+                        sh """
+                            echo "Undeploy old version"
+                            curl -s -u $USER:$PASS "http://$HOST/manager/text/undeploy?path=/amazon" || true
+
+                            echo "Deploying new WAR"
+                            curl -s -u $USER:$PASS --upload-file Amazon/Amazon-Web/target/*.war \
+                               "http://$HOST/manager/text/deploy?path=/amazon&update=true"
+                        """
+                    }
                 }
             }
         }
     }
 
     post {
-
-        success {
-            echo "Build completed successfully!"
-
-            mail to: 'maruthi.abc.reports@gmail.com',
-                 subject: "BUILD SUCCESS: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "The Jenkins job '${env.JOB_NAME}' build #${env.BUILD_NUMBER} completed SUCCESSFULLY.\n\nConsole output:\n${env.BUILD_URL}"
-        }
-
-        failure {
-            echo "Build failed."
-
-            mail to: 'maruthi.abc.reports@gmail',
-                 subject: "BUILD FAILURE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "The Jenkins job '${env.JOB_NAME}' build #${env.BUILD_NUMBER} has FAILED.\n\nConsole output:\n${env.BUILD_URL}"
-        }
-
-        unstable {
-            echo "Build is unstable."
-
-            mail to: 'maruthi.abc.reports@gmail.com',
-                 subject: "BUILD UNSTABLE: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "The Jenkins job '${env.JOB_NAME}' build #${env.BUILD_NUMBER} is UNSTABLE.\n\nConsole output:\n${env.BUILD_URL}"
-        }
-
-        aborted {
-            echo "Build aborted."
-
-            mail to: 'maruthi.abc.reports@gmail.com',
-                 subject: "BUILD ABORTED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                 body: "The Jenkins job '${env.JOB_NAME}' build #${env.BUILD_NUMBER} was aborted.\n\nConsole output:\n${env.BUILD_URL}"
-        }
-
         always {
-            echo "Pipeline finished."
+            archiveArtifacts artifacts: "${WAR_BACKUP_DIR}/*.war", onlyIfSuccessful: false
         }
     }
 }
