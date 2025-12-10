@@ -10,9 +10,10 @@ pipeline {
     }
 
     environment {
-        SONAR_CRED      = "sonar-token"
-        TOMCAT_CRED     = "local tomcat user"   // FIXED CREDENTIAL ID
-        WAR_BACKUP_DIR  = "backup"
+        SONAR_SERVER = "sonarqube"    // SonarQube server name from Jenkins global config
+        SONAR_TOKEN  = "sonar-token"  // Jenkins credentials ID (secret text)
+        TOMCAT_CRED  = "local tomcat user"
+        WAR_BACKUP_DIR = "backup"
     }
 
     stages {
@@ -31,6 +32,24 @@ pipeline {
 
                     echo "Branch Name: ${BRANCH}"
                     echo "Final Selected Environment (DEPLOY_ENV): ${env.DEPLOY_ENV}"
+                }
+            }
+        }
+
+        /* ==================  SONAR SCAN  ================== */
+        stage('SonarQube Analysis') {
+            steps {
+                script {
+                    withSonarQubeEnv("${SONAR_SERVER}") {
+                        sh """
+                            sonar-scanner \
+                                -Dsonar.projectKey=Amazon \
+                                -Dsonar.projectName=Amazon \
+                                -Dsonar.sources=Amazon \
+                                -Dsonar.java.binaries=Amazon/Amazon-Web/target \
+                                -Dsonar.login=${SONAR_TOKEN}
+                        """
+                    }
                 }
             }
         }
@@ -68,7 +87,7 @@ pipeline {
             steps {
                 sh "mkdir -p ${WAR_BACKUP_DIR}"
                 sh "cp Amazon/Amazon-Web/target/*.war ${WAR_BACKUP_DIR}/amazon_${BUILD_NUMBER}.war"
-                echo "WAR backup saved to: ${WAR_BACKUP_DIR}/amazon_${BUILD_NUMBER}.war"
+                echo "WAR backup saved: ${WAR_BACKUP_DIR}/amazon_${BUILD_NUMBER}.war"
             }
         }
 
@@ -76,14 +95,12 @@ pipeline {
         stage('Deploy to Tomcat') {
             steps {
                 script {
-
                     def HOST =
                         (env.DEPLOY_ENV == 'dev')  ? "localhost:8085" :
                         (env.DEPLOY_ENV == 'qa')   ? "localhost:8092" :
                                                       "localhost:8081"
 
                     echo "Deploying to: ${HOST}"
-                    echo "Using credentials ID: ${TOMCAT_CRED}"
 
                     withCredentials([usernamePassword(
                         credentialsId: TOMCAT_CRED,
@@ -97,19 +114,4 @@ pipeline {
 
                             echo "===== Deploying new WAR ====="
                             curl -s -u $USER:$PASS --upload-file Amazon/Amazon-Web/target/*.war \
-                                 "http://$HOST/manager/text/deploy?path=/amazon&update=true"
-
-                            echo "===== Deployment Completed ====="
-                        """
-                    }
-                }
-            }
-        }
-    }
-
-    post {
-        always {
-            archiveArtifacts artifacts: "${WAR_BACKUP_DIR}/*.war", onlyIfSuccessful: false
-        }
-    }
-}
+                                "http://$HOST/manager/text/deploy?path=/amazon&update=true"
