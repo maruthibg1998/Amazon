@@ -10,9 +10,9 @@ pipeline {
     }
 
     environment {
-        SONAR_SERVER = "sonarqube"    // SonarQube server name from Jenkins global config
-        SONAR_TOKEN  = "sonar-token"  // Jenkins credentials ID (secret text)
-        TOMCAT_CRED  = "local tomcat user"
+        SONAR_SERVER   = "sonarqube"      // Jenkins global SonarQube name
+        SONAR_TOKEN    = "sonar-token"    // Jenkins secret text credential
+        TOMCAT_CRED    = "local tomcat user"
         WAR_BACKUP_DIR = "backup"
     }
 
@@ -31,7 +31,7 @@ pipeline {
                                                                            params.DEPLOY_ENV
 
                     echo "Branch Name: ${BRANCH}"
-                    echo "Final Selected Environment (DEPLOY_ENV): ${env.DEPLOY_ENV}"
+                    echo "Final Selected Environment = ${env.DEPLOY_ENV}"
                 }
             }
         }
@@ -39,17 +39,15 @@ pipeline {
         /* ==================  SONAR SCAN  ================== */
         stage('SonarQube Analysis') {
             steps {
-                script {
-                    withSonarQubeEnv("${SONAR_SERVER}") {
-                        sh """
-                            sonar-scanner \
-                                -Dsonar.projectKey=Amazon \
-                                -Dsonar.projectName=Amazon \
-                                -Dsonar.sources=Amazon \
-                                -Dsonar.java.binaries=Amazon/Amazon-Web/target \
-                                -Dsonar.login=${SONAR_TOKEN}
-                        """
-                    }
+                withSonarQubeEnv("${SONAR_SERVER}") {
+                    sh """
+                        sonar-scanner \
+                            -Dsonar.projectKey=Amazon \
+                            -Dsonar.projectName=Amazon \
+                            -Dsonar.sources=Amazon \
+                            -Dsonar.java.binaries=Amazon/Amazon-Web/target \
+                            -Dsonar.login=${SONAR_TOKEN}
+                    """
                 }
             }
         }
@@ -115,3 +113,18 @@ pipeline {
                             echo "===== Deploying new WAR ====="
                             curl -s -u $USER:$PASS --upload-file Amazon/Amazon-Web/target/*.war \
                                 "http://$HOST/manager/text/deploy?path=/amazon&update=true"
+                            
+                            echo "===== Deployment Completed ====="
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            archiveArtifacts artifacts: "${WAR_BACKUP_DIR}/*.war", onlyIfSuccessful: false
+        }
+    }
+}
