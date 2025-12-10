@@ -10,15 +10,15 @@ pipeline {
     }
 
     environment {
-        SONAR_SERVER = "sonarqube"        // SonarQube server name (from Jenkins global config)
-        SONAR_TOKEN  = "sonar-token"      // Credential ID (Secret Text)
+        SONAR_SERVER = "sonarqube"        // Name from Jenkins Global Configuration
+        SONAR_TOKEN  = "sonar-token"      // Jenkins Secret Text credential ID
         TOMCAT_CRED  = "local tomcat user"
         WAR_BACKUP_DIR = "backup"
     }
 
     stages {
 
-        /* ==================  SELECT ENVIRONMENT  ================== */
+        /* ================== SELECT ENVIRONMENT ================== */
         stage('Select Environment') {
             steps {
                 script {
@@ -36,29 +36,29 @@ pipeline {
             }
         }
 
-        /* ==================  SONARQUBE ANALYSIS  ================== */
+        /* ================== SONARQUBE ANALYSIS ================== */
         stage('SonarQube Analysis') {
             steps {
                 script {
                     withSonarQubeEnv("${SONAR_SERVER}") {
-                        withCredentials([string(credentialsId: SONAR_TOKEN, variable: 'SONAR_LOGIN')]) {
+                        withCredentials([string(credentialsId: SONAR_TOKEN, variable: 'TOKEN')]) {
 
-                            sh """
+                            sh '''
                                 sonar-scanner \
                                     -Dsonar.projectKey=Amazon \
                                     -Dsonar.projectName=Amazon \
                                     -Dsonar.sources=Amazon \
                                     -Dsonar.java.binaries=Amazon/Amazon-Web/target \
                                     -Dsonar.host.url=$SONAR_HOST_URL \
-                                    -Dsonar.login=$SONAR_LOGIN
-                            """
+                                    -Dsonar.login=$TOKEN
+                            '''
                         }
                     }
                 }
             }
         }
 
-        /* ==================  COMPILE  ================== */
+        /* ================== COMPILE ================== */
         stage('Compile') {
             steps {
                 dir('Amazon') {
@@ -67,7 +67,7 @@ pipeline {
             }
         }
 
-        /* ==================  UNIT TEST  ================== */
+        /* ================== UNIT TEST ================== */
         stage('Unit Test') {
             steps {
                 dir('Amazon') {
@@ -77,7 +77,7 @@ pipeline {
             }
         }
 
-        /* ==================  PACKAGE WAR  ================== */
+        /* ================== PACKAGE WAR ================== */
         stage('Package WAR') {
             steps {
                 dir('Amazon') {
@@ -86,7 +86,7 @@ pipeline {
             }
         }
 
-        /* ==================  BACKUP WAR  ================== */
+        /* ================== BACKUP WAR ================== */
         stage('Backup WAR') {
             steps {
                 sh "mkdir -p ${WAR_BACKUP_DIR}"
@@ -95,7 +95,7 @@ pipeline {
             }
         }
 
-        /* ==================  DEPLOY TO TOMCAT  ================== */
+        /* ================== DEPLOY TO TOMCAT ================== */
         stage('Deploy to Tomcat') {
             steps {
                 script {
