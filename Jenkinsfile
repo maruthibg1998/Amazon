@@ -1,0 +1,34 @@
+pipeline {
+    agent { label 'built-in' }
+
+    environment {
+        git_branch = 'main'
+        git_url = 'https://github.com/maruthibg1998/Amazon.git'
+    }
+
+    stages {
+        stage('Clone') {
+            steps {
+                git branch: "${git_branch}", url: "${git_url}", credentialsId: 'github-ssh'
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                sh 'mvn -f Amazon/pom.xml compile'
+            }
+        }
+
+        stage('Test') {
+            steps {
+                sh 'mvn -f Amazon/pom.xml test'
+            }
+        }
+
+        stage('Build Project') {
+            steps {
+                sh 'mvn -f Amazon/pom.xml clean install'
+            }
+        }
+    }
+}
