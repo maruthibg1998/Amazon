@@ -1,0 +1,60 @@
+pipeline {
+    
+    agent { label 'built-in' }
+
+    environment {
+        git_branch = 'main'
+        git_url = 'https://github.com/pavankumarch1219/Amazon.git'
+    }
+
+    stages {
+
+        stage('Clone') {
+            steps {
+                git branch: "${git_branch}", url: "${git_url}"
+            }
+        }
+
+        stage('Clean') {
+            steps {
+                dir('Amazon') {
+                    sh 'mvn clean'
+                }
+            }
+        }
+
+        stage('Compile') {
+            steps {
+                dir('Amazon') {
+                    sh 'mvn compile'
+                }
+            }
+        }
+
+        stage('Test') {
+            steps {
+                dir('Amazon') {
+                    sh 'mvn test'
+                }
+            }
+        }
+
+        stage('Package') {
+            steps {
+                dir('Amazon') {
+                    sh 'mvn package'
+                }
+            }
+        }
+
+        stage('Install') {
+            steps {
+                dir('Amazon') {
+                    sh 'mvn clean install'
+                }
+            }
+        }
+    }
+
+
+} 
